@@ -5,7 +5,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/emulator",
-            "args": ["${workspaceFolder}/ibm-rom.ch8"],
+            "args": ["${workspaceFolder}/roms/6-keypad.ch8"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
