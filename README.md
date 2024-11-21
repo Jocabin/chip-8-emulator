@@ -1,17 +1,9 @@
-# Odin project template
+# Chip-8 emulator in Odin
 
-## How to build and run
+This is my version of the famous [Chip-8 emulator](https://fr.wikipedia.org/wiki/CHIP-8), written in Odin.
 
-Rename all the occurences of `emulator` in the template by your app name.
+## Build the project
 
-`./build.sh` will build with debug informations, and then run the program.
+Just run the `./build.sh` script, or build/run the project directly with the Odin compiler.
 
-## Informations
-
-At the begining of the `src/main.odin` file, you will notice a block of code. This is for tracking bad frees and unfree allocations. All errors printed to `stderr` will finish in the `mem_leaks.txt` file.
-
-With that, you can retrieve all memories allocations in this file.
-
-This template contain all necessary files for LSP, formating and debuging to use with Visual Studio Code, in case you need it.
-
-Don't forget to add `mem_leaks.txt` in your `.gitignore`!
+Dont forget to pass as argument the rom file path.
