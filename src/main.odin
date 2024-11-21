@@ -33,12 +33,6 @@ Chip_Context :: struct {
 	keypad:                   [16]bool,
 }
 
-// todo: fix sound
-// todo: fix PONG
-// todo: fix keypad NOT HALTING
-// todo: validate all test roms
-// todo: optimize perfs
-
 main :: proc() {
 	when ODIN_DEBUG {
 		track: mem.Tracking_Allocator
@@ -213,26 +207,32 @@ emulate_chip :: proc(ctx: ^Chip_Context) {
 			ctx.reg_v[x] = ctx.reg_v[y]
 		case 1:
 			ctx.reg_v[x] |= ctx.reg_v[y]
+			ctx.reg_v[0xF] = 0
 		case 2:
 			ctx.reg_v[x] &= ctx.reg_v[y]
+			ctx.reg_v[0xF] = 0
 		case 3:
 			ctx.reg_v[x] ~= ctx.reg_v[y]
+			ctx.reg_v[0xF] = 0
 		case 4:
 			sum := u16(ctx.reg_v[x]) + u16(ctx.reg_v[y])
 			ctx.reg_v[x] = u8(sum)
 			ctx.reg_v[0xF] = sum > 255 ? 1 : 0
 		case 5:
+			carry: u8 = ctx.reg_v[y] <= ctx.reg_v[x] ? 1 : 0
 			ctx.reg_v[x] -= ctx.reg_v[y]
-			ctx.reg_v[0xF] = ctx.reg_v[x] > ctx.reg_v[y] ? 1 : 0
+			ctx.reg_v[0xF] = carry
 		case 6:
-			ctx.reg_v[x] >>= 1
-			ctx.reg_v[0xF] = ctx.reg_v[x] & 0x1 == 1 ? 1 : 0
+			carry: u8 = ctx.reg_v[y] & 0x1 == 1 ? 1 : 0
+			ctx.reg_v[x] = ctx.reg_v[y] >> 1
+			ctx.reg_v[0xF] = carry
 		case 7:
 			ctx.reg_v[x] = ctx.reg_v[y] - ctx.reg_v[x]
 			ctx.reg_v[0xF] = ctx.reg_v[y] > ctx.reg_v[x] ? 1 : 0
 		case 0xE:
-			ctx.reg_v[x] <<= 1
-			ctx.reg_v[0xF] = ctx.reg_v[x] >> 7
+			carry := (ctx.reg_v[y] & 0x80) >> 7
+			ctx.reg_v[x] = ctx.reg_v[y] << 1
+			ctx.reg_v[0xF] = carry
 		case:
 			panic("Unimplemented instruction")
 		}
@@ -316,11 +316,13 @@ emulate_chip :: proc(ctx: ^Chip_Context) {
 			val /= 10
 		case 0x55:
 			for index in 0 ..= x {
-				ctx.mem[ctx.i_reg + u16(index)] = ctx.reg_v[index]
+				ctx.mem[ctx.i_reg] = ctx.reg_v[index]
+				ctx.i_reg += 1
 			}
 		case 0x65:
 			for index in 0 ..= x {
-				ctx.reg_v[index] = ctx.mem[ctx.i_reg + u16(index)]
+				ctx.reg_v[index] = ctx.mem[ctx.i_reg]
+				ctx.i_reg += 1
 			}
 		}
 	}
@@ -366,6 +368,7 @@ audio_callback :: proc "c" (buffer_data: rawptr, frames: u32) {
 	samples: []f32 = (cast([^]f32)buffer_data)[:frames]
 
 	for i in 0 ..< frames {
-		samples[i] = AMPLITUDE * math.sin_f32(FREQUENCY * 2.0 * (f32(i) / f32(32)) * math.PI)
+		samples[i] =
+			AMPLITUDE * math.sin_f32(FREQUENCY * 2.0 * (f32(i) / f32(SAMPLE_RATE)) * math.PI)
 	}
 }
