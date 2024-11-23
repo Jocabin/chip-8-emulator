@@ -130,7 +130,11 @@ main :: proc() {
 		rl.BeginDrawing()
 
 		for i in 0 ..< INSTRUCTIONS_PER_FRAME {
-			emulate_chip(&ctx)
+			opcode := u16(ctx.mem[ctx.pc]) << 8 | u16(ctx.mem[ctx.pc + 1])
+			emulate_chip(&ctx, opcode)
+
+			// Display wait quirks
+			if opcode >> 12 == 0xD do break
 		}
 
 		if ctx.delay_timer > 0 do ctx.delay_timer -= 1
@@ -165,9 +169,7 @@ update_screen :: proc(ctx: Chip_Context) {
 	}
 }
 
-emulate_chip :: proc(ctx: ^Chip_Context) {
-	opcode := u16(ctx.mem[ctx.pc]) << 8 | u16(ctx.mem[ctx.pc + 1])
-
+emulate_chip :: proc(ctx: ^Chip_Context, opcode: u16) {
 	nnn := opcode & 0x0FFF
 	kk := u8(opcode & 0x0FF)
 	n := u8(opcode & 0x0F)
@@ -245,27 +247,28 @@ emulate_chip :: proc(ctx: ^Chip_Context) {
 	case 0x0C:
 		ctx.reg_v[x] = u8(rl.GetRandomValue(0, 255)) & kk
 	case 0x0D:
-		// todo rewrite myself
-		vx := ctx.reg_v[x]
-		vy := ctx.reg_v[y]
+		y_coord := int(ctx.reg_v[y] % DISPLAY_HEIGHT)
+		x_coord := int(ctx.reg_v[x] % DISPLAY_WIDTH)
+		orig_x := x_coord
 
 		ctx.reg_v[0xF] = 0
 
-		for y := 0; y < int(n); y += 1 {
-			b := ctx.mem[int(ctx.i_reg) + y]
-			yy := (int(vy) + y) % DISPLAY_HEIGHT
+		for i: u8 = 0; i < n; i += 1 {
+			sprite_data := ctx.mem[ctx.i_reg + u16(i)]
+			x_coord = orig_x
 
-			for x := 0; x < 8; x += 1 {
-				bit := u8(b & 0b1000_0000 > 0 ? 1 : 0)
-				b <<= 1
+			for j: u8 = 7; j >= 0; j -= 1 {
+				pixel := &ctx.framebuffer[y_coord * DISPLAY_WIDTH + x_coord]
+				sprite_bit := bool(sprite_data & (1 << j) != 0)
 
-				xx := (int(vx) + x) % DISPLAY_WIDTH
-				screen_bit := ctx.framebuffer[xx + yy * DISPLAY_WIDTH]
+				if sprite_bit && pixel^ do ctx.reg_v[0xF] = 1
 
-				if screen_bit == true && bit == 1 do ctx.reg_v[0xf] = 1
+				pixel^ ~= sprite_bit
 
-				ctx.framebuffer[xx + yy * DISPLAY_WIDTH] = u8(screen_bit) ~ bit > 0
+				if x_coord += 1; x_coord >= DISPLAY_WIDTH do break
 			}
+
+			if y_coord += 1; y_coord >= DISPLAY_HEIGHT do break
 		}
 	case 0x0E:
 		if kk == 0x9E {
